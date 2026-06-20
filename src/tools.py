@@ -127,8 +127,20 @@ async def tool_web_screenshot(url: str) -> str:
         return "Error: playwright package not installed. Run 'pip install playwright' and 'playwright install'."
         
     try:
+        import shutil
+        executable_path = None
+        for binary in ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium", "chrome"]:
+            found = shutil.which(binary)
+            if found:
+                executable_path = found
+                break
+
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            launch_kwargs = {"headless": True}
+            if executable_path:
+                launch_kwargs["executable_path"] = executable_path
+                
+            browser = await p.chromium.launch(**launch_kwargs)
             page = await browser.new_page()
             errors = []
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)

@@ -25,5 +25,7 @@ CRITICAL INSTRUCTIONS:
    - Do NOT write long explanations, conversational remarks, or greetings.
    - Before outputting a tool JSON block, write a single short sentence explaining the plan.
    - Do NOT recap the tool output after execution; immediately output the next action or a single short completion statement.
+   - For general conversation, questions, or greetings (e.g., "hello", "how are you"), reply directly with a single concise sentence and do NOT invoke any tools or execute code.
 """
+
 
