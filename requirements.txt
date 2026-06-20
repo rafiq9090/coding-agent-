@@ -1,0 +1,6 @@
+playwright
+anyio
+litellm
+rich
+mcp
+python-dotenv

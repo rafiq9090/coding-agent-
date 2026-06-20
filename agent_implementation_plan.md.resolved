@@ -1,0 +1,115 @@
+# Unrestricted Terminal Coding Agent: Implementation Plan & Comparison
+
+This document outlines the comparative differences between your proposed custom terminal agent and existing solutions (Cursor, Antigravity), followed by a step-by-step plan to implement this optimal, resource-efficient architecture on your local machine.
+
+---
+
+## 📊 Feature Comparison Table
+
+| Feature / Dimension | Cursor Agent (Composer) | Antigravity Agent | Custom Terminal Agent (Proposed) |
+| :--- | :--- | :--- | :--- |
+| **User Interface** | GUI (VS Code Editor) | IDE/VS Code Integrated UI | **CLI / Terminal only** (Zero GUI overhead) |
+| **Model Choice** | Closed (Subsidized Cloud APIs) | Configurable Cloud APIs | **Open Gateway** (Cloud APIs + Local Ollama / vLLM) |
+| **System Overhead** | High (V8/Electron GUI processes) | Medium-High (Extension host) | **Very Low** (Pure Python subprocesses, <150MB RAM) |
+| **Codebase Indexing (RAG)** | Native Background Embeddings | Context-aware Project Scanner | **ChromaDB + Custom Abstract Syntax Tree (AST) Parser** |
+| **Write Permission Model** | Semi-Restricted / Guided | Prompt-on-change | **Granular Policy Hooks** (Always, Ask, Deny per tool) |
+| **Execution Sandboxing** | No native sandboxing | No native sandboxing | **Configurable Docker container/isolated subprocesses** |
+| **Visual Testing** | External/Manual | Integrated screenshot check | **Auto-Playwright screenshot + Error Feedback loop** |
+
+---
+
+## 🛠️ Step-by-Step Implementation Plan
+
+### Phase 1: Gateway and Core Loop Setup
+**Goal:** Build the basic CLI client using `litellm` that can switch models and execute basic user queries.
+
+1. **Initialize Workspace Configuration:**
+   Create a local configuration file `agent_config.json` containing:
+   * Selected model (e.g. `gemini/gemini-1.5-flash` or `ollama/qwen2.5-coder`)
+   * Custom system prompts.
+   * Permission policy definitions.
+2. **Setup LiteLLM Integration:**
+   Write the connection module supporting standard cloud providers (Anthropic, Gemini, OpenAI) and local endpoints (`http://localhost:11434` for Ollama).
+3. **Core Orchestration Loop:**
+   Establish the conversational state list (`messages`), prompt the user inside a terminal while loop, and feed responses back to keep conversation context alive.
+
+---
+
+### Phase 2: Lightweight Semantic Code Search (RAG)
+**Goal:** Enable your agent to understand your codebase conceptually without heavy background indexing.
+
+1. **Parser & Chunking Script:**
+   Implement a Python utility to traverse the codebase, ignore files via `.gitignore`, and split files into function-level/class-level chunks using regex or Python AST.
+2. **Local Vector Storage:**
+   Setup **ChromaDB** in a persistent folder `.vector_db` inside the workspace.
+3. **Embeddings Pipeline:**
+   Create a script to embed chunks on startup or dynamically when files change using `nomic-embed-text` (local Ollama) or `openai/text-embedding-3-small` (cloud).
+4. **Search Tool:**
+   Register the `@tool("semantic_search")` command for the agent to query the vector DB.
+
+---
+
+### Phase 3: Targeted Search-and-Replace File Editor
+**Goal:** Create a tool that allows the model to modify large files efficiently without re-writing the entire file.
+
+1. **Design Diff Format:**
+   Define a structured block structure for the tool payload:
+   ```json
+   {
+     "action": "edit_file",
+     "path": "src/main.py",
+     "search_block": "def old_func():\n    return False",
+     "replace_block": "def old_func():\n    return True"
+   }
+   ```
+2. **Safety Validations:**
+   Write python verification steps:
+   * Verify target file exists.
+   * Ensure `search_block` is unique inside the file to prevent replacing the wrong code.
+   * Format indentation to match target file structure before writing.
+
+---
+
+### Phase 4: Execution Sandbox and Self-Healing Debugger
+**Goal:** Allow the agent to run code, identify failures, and fix them automatically.
+
+1. **Execution Tool (`run_bash`):**
+   Execute terminal commands using Python's `subprocess.Popen` with a strict execution timeout (e.g., 30 seconds max).
+2. **Permission Middleware:**
+   Add interactive command interceptors. For example:
+   * If command is `cat file.txt` -> auto-allow.
+   * If command is `rm -rf` or `npm run build` -> wait for manual user `[y/n]` input.
+3. **Self-Correction Pipeline:**
+   If a command exits with a non-zero status code, grab `stderr`, format it into a user feedback prompt, and send it back into the model's message queue so it can fix its edits.
+
+---
+
+### Phase 5: Browser Visual Verification
+**Goal:** Automate visual screenshotting of built web applications.
+
+1. **Playwright Lifespan Wrapper:**
+   Establish a transient Playwright browser module that launches chromium in headless mode, opens the target localhost URL, and takes a full-page snapshot.
+2. **Console Error Tracker:**
+   Extract and forward JavaScript logs and console tracebacks to feed back to the reasoning loop if errors are detected.
+3. **Screenshot Storage:**
+   Store screenshots as local artifacts for the user to review side-by-side with the agent's log.
+
+---
+
+## 📂 Modular Codebase Layout
+
+To make customization easy, the project structure is split into dedicated components:
+
+```
+my-agent/
+├── custom_agent.py          # Entry point and orchestrator chat loop
+├── agent_workspace/         # The active sandbox directory for files
+│   └── agent_config.json    # The local configuration file
+└── src/
+    ├── __init__.py          # Package initializer
+    ├── config.py            # Model credentials, allowed directories list, loading/saving settings
+    ├── ui.py                # Rich terminal visual styling, Console fallbacks, and Settings Menu
+    ├── tools.py             # Sandbox paths checker, execute commands, file reader/writers, and playwright
+    └── prompts.py           # Core agent instructions and system prompts
+```
+

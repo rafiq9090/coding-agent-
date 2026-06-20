@@ -1,0 +1,17 @@
+# Environment variables / private keys
+.env
+
+# Python cache / builds
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local virtual environment
+venv/
+.venv/
+env/
+
+# Workspace local runs and screenshots
+agent_workspace/agent_config.json
+agent_workspace/screenshot.png
