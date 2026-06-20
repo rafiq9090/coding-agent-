@@ -28,7 +28,7 @@ CONFIG_FILE = WORKSPACE / "agent_config.json"
 DEFAULT_CONFIG = {
     "selected_model": "gemini",
     "model_details": {
-        "gemini": "gemini/gemini-1.5-flash",
+        "gemini": "gemini/gemini-2.5-flash",
         "claude": "anthropic/claude-3-5-sonnet-20241022",
         "groq": "groq/llama-3.3-70b-versatile",
         "local": "ollama/qwen2.5-coder:7b"
