@@ -39,7 +39,11 @@ from src.tools import (
     tool_web_browse_type,
     tool_web_browse_get_elements,
     tool_web_browse_screenshot,
-    tool_web_browse_close
+    tool_web_browse_close,
+    tool_web_browse_scroll,
+    tool_web_browse_get_text,
+    tool_web_browse_set_viewport,
+    tool_web_browse_evaluate
 )
 from src.mcp_client import mcp_manager
 
@@ -110,6 +114,14 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
         return await tool_web_browse_screenshot()
     elif tool_name == "web_browse_close":
         return await tool_web_browse_close()
+    elif tool_name == "web_browse_scroll":
+        return await tool_web_browse_scroll(args.get("direction", "down"), int(args.get("amount", 500)))
+    elif tool_name == "web_browse_get_text":
+        return await tool_web_browse_get_text()
+    elif tool_name == "web_browse_set_viewport":
+        return await tool_web_browse_set_viewport(int(args.get("width", 1280)), int(args.get("height", 720)), bool(args.get("is_mobile", False)))
+    elif tool_name == "web_browse_evaluate":
+        return await tool_web_browse_evaluate(args.get("javascript", ""))
     elif "__" in tool_name:
         return await manager.execute_tool(tool_name, args)
     else:

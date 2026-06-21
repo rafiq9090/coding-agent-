@@ -161,7 +161,10 @@ class PlaywrightBrowser:
     def __init__(self):
         self.playwright = None
         self.browser = None
+        self.context = None
         self.page = None
+        self.viewport = {"width": 1280, "height": 720}
+        self.user_agent = None
 
     async def get_page(self):
         if self.page and not self.page.is_closed():
@@ -188,15 +191,39 @@ class PlaywrightBrowser:
             launch_kwargs["headless"] = True
             self.browser = await self.playwright.chromium.launch(**launch_kwargs)
             
-        self.page = await self.browser.new_page()
+        context_kwargs = {
+            "viewport": self.viewport
+        }
+        if self.user_agent:
+            context_kwargs["user_agent"] = self.user_agent
+            
+        self.context = await self.browser.new_context(**context_kwargs)
+        self.page = await self.context.new_page()
         return self.page
 
     async def close(self):
+        if self.page:
+            try:
+                await self.page.close()
+            except Exception:
+                pass
+        if self.context:
+            try:
+                await self.context.close()
+            except Exception:
+                pass
         if self.browser:
-            await self.browser.close()
+            try:
+                await self.browser.close()
+            except Exception:
+                pass
         if self.playwright:
-            await self.playwright.stop()
+            try:
+                await self.playwright.stop()
+            except Exception:
+                pass
         self.page = None
+        self.context = None
         self.browser = None
         self.playwright = None
 
@@ -287,6 +314,74 @@ async def tool_web_browse_close() -> str:
     except Exception as e:
         return f"Error closing browser: {e}"
 
+async def tool_web_browse_scroll(direction: str, amount: int = 500) -> str:
+    """Scroll the page in a direction ('up', 'down', 'top', 'bottom') by a specified pixel amount."""
+    try:
+        page = await browser_manager.get_page()
+        if direction == "down":
+            await page.evaluate(f"window.scrollBy(0, {amount})")
+            return f"Scrolled down by {amount} pixels."
+        elif direction == "up":
+            await page.evaluate(f"window.scrollBy(0, -{amount})")
+            return f"Scrolled up by {amount} pixels."
+        elif direction == "bottom":
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            return "Scrolled to the bottom of the page."
+        elif direction == "top":
+            await page.evaluate("window.scrollTo(0, 0)")
+            return "Scrolled to the top of the page."
+        else:
+            return f"Unknown direction '{direction}'. Use 'up', 'down', 'top', or 'bottom'."
+    except Exception as e:
+        return f"Error scrolling: {e}"
+
+async def tool_web_browse_get_text() -> str:
+    """Retrieve the visible innerText of the current page to analyze content, headers, paragraphs, and details."""
+    try:
+        page = await browser_manager.get_page()
+        text = await page.evaluate("document.body.innerText")
+        if not text.strip():
+            return "The page is empty or contains no visible text."
+        return f"Page Text Content (truncated to 8000 chars):\n\n{text[:8000]}"
+    except Exception as e:
+        return f"Error retrieving page text: {e}"
+
+async def tool_web_browse_set_viewport(width: int, height: int, is_mobile: bool = False) -> str:
+    """Set the browser window/viewport size and optionally emulate mobile device mode."""
+    if not check_permission("web_browse_set_viewport", f"Set viewport to {width}x{height} (mobile={is_mobile})"):
+        return "Permission denied by user."
+    try:
+        browser_manager.viewport = {"width": width, "height": height}
+        if is_mobile:
+            browser_manager.user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+        else:
+            browser_manager.user_agent = None
+            
+        # Recreate page/context if browser is already open
+        if browser_manager.page:
+            url = browser_manager.page.url
+            await browser_manager.close()
+            page = await browser_manager.get_page()
+            if url and url != "about:blank":
+                await page.goto(url, wait_until="networkidle", timeout=15000)
+        else:
+            await browser_manager.get_page()
+            
+        return f"Successfully updated viewport to {width}x{height} (mobile emulation: {is_mobile})."
+    except Exception as e:
+        return f"Error setting viewport: {e}"
+
+async def tool_web_browse_evaluate(javascript: str) -> str:
+    """Evaluate custom JavaScript in the context of the page and return the result."""
+    if not check_permission("web_browse_evaluate", f"Evaluate custom JS: {javascript}"):
+        return "Permission denied by user."
+    try:
+        page = await browser_manager.get_page()
+        result = await page.evaluate(javascript)
+        return f"JavaScript execution result:\n{result}"
+    except Exception as e:
+        return f"Error evaluating JavaScript: {e}"
+
 def tool_search_codebase(query_text: str) -> str:
     """Uses ChromaDB vector search if present; falls back to basic word matches"""
     try:
@@ -369,5 +464,25 @@ TOOLS_METADATA = [
         "name": "web_browse_close",
         "description": "Close the active browser session.",
         "arguments": []
+    },
+    {
+        "name": "web_browse_scroll",
+        "description": "Scroll the page in a direction ('up', 'down', 'top', 'bottom') by a specified pixel amount.",
+        "arguments": ["direction", "amount"]
+    },
+    {
+        "name": "web_browse_get_text",
+        "description": "Retrieve the visible innerText of the current page to analyze content, headers, paragraphs, and details.",
+        "arguments": []
+    },
+    {
+        "name": "web_browse_set_viewport",
+        "description": "Set the browser window/viewport size and optionally emulate mobile device mode.",
+        "arguments": ["width", "height", "is_mobile"]
+    },
+    {
+        "name": "web_browse_evaluate",
+        "description": "Evaluate custom JavaScript in the context of the page and return the result.",
+        "arguments": ["javascript"]
     }
 ]
