@@ -60,7 +60,18 @@ async def get_dynamic_system_prompt(manager) -> str:
             "parameters": t["input_schema"]
         })
         
-    system_prompt = f"""You are a senior developer AI agent operating on a local codebase.
+    persona = config.get("persona", "developer")
+    persona_descriptions = {
+        "developer": "You are a senior developer AI agent operating on a local codebase. You focus on implementation, coding, bug-fixing, refactoring, and following programming best practices.",
+        "qa_tester": "You are a quality assurance (QA) and testing engineer. You focus on quality assurance, writing robust unit/integration tests, validating edge cases, verifying page layouts/stylesheets/errors via screenshots, and identifying/reporting bugs.",
+        "orchestrator": "You are a task orchestrator and workflow automation expert. You focus on task decomposition, managing execution flow, coordinating multiple agents/tools, and running custom automated workflows.",
+        "database_designer": "You are a database designer and administrator. You focus on data modeling, designing schemas, normalizations, setting up migrations, writing optimal SQL queries, indexing, and optimizing query performance.",
+        "architecture_designer": "You are a software architecture designer. You focus on high-level system architecture, designing component boundaries, API contracts, choosing structural patterns, and ensuring clean separation of concerns.",
+        "planner": "You are a project planner and product manager. You focus on task planning, creating detailed PRDs, writing step-by-step implementation plans, project roadmap scheduling, estimating milestones, and tracking tasks."
+    }
+    role_description = persona_descriptions.get(persona, persona_descriptions["developer"])
+        
+    system_prompt = f"""{role_description}
 You operate in a structured plan-execute-verify cycle.
 
 Available Tools:

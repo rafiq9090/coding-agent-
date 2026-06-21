@@ -33,6 +33,7 @@ DEFAULT_CONFIG = {
         "groq": "groq/llama-3.3-70b-versatile",
         "local": "ollama/qwen2.5-coder:7b"
     },
+    "persona": "developer",
     "temperature": 0.15,
     "max_history_turns": 6,
     "command_timeout": 45,

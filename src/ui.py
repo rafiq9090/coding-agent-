@@ -71,10 +71,12 @@ async def run_settings_menu():
 
         gateway = config.get("selected_model", "gemini")
         model_id = config.get("model_details", {}).get(gateway, "gemini/gemini-1.5-flash")
+        persona = config.get("persona", "developer")
 
         console.print(Panel(
             f"[bold white]Current Configuration:[/bold white]\n"
             f"  • [cyan]Model Gateway    [/cyan]: [bold green]{gateway}[/bold green] ({model_id})\n"
+            f"  • [cyan]Persona          [/cyan]: [bold green]{persona}[/bold green]\n"
             f"  • [cyan]Temperature      [/cyan]: [bold green]{config.get('temperature')}[/bold green]\n"
             f"  • [cyan]Max History Turns[/cyan]: [bold green]{config.get('max_history_turns')}[/bold green]\n"
             f"  • [cyan]Command Timeout  [/cyan]: [bold green]{config.get('command_timeout')}s[/bold green]\n"
@@ -86,7 +88,7 @@ async def run_settings_menu():
         
         choice = Prompt.ask(
             "Select action",
-            choices=["model", "parameters", "permissions", "allowed_dirs", "back"],
+            choices=["model", "persona", "parameters", "permissions", "allowed_dirs", "back"],
             default="back"
         )
         
@@ -112,6 +114,16 @@ async def run_settings_menu():
             save_config(config)
             console.print(f"[green]✓[/green] Model configured to: [bold cyan]{new_id}[/bold cyan]\n")
             
+        elif choice == "persona":
+            persona_choice = Prompt.ask(
+                "Select Agent Persona",
+                choices=["developer", "qa_tester", "orchestrator", "database_designer", "architecture_designer", "planner"],
+                default=persona
+            )
+            config["persona"] = persona_choice
+            save_config(config)
+            console.print(f"[green]✓[/green] Persona configured to: [bold cyan]{persona_choice}[/bold cyan]\n")
+
         elif choice == "parameters":
             param = Prompt.ask(
                 "Select parameter to configure",
