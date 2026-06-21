@@ -43,7 +43,8 @@ DEFAULT_CONFIG = {
         "edit_file": "ask",
         "run_command": "ask",
         "web_screenshot": "always",
-        "search_codebase": "always"
+        "search_codebase": "always",
+        "security_check": "always"
     },
     "allowed_dirs": [str(WORKSPACE)]
 }
