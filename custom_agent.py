@@ -118,7 +118,7 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
     elif tool_name == "edit_file":
         return tool_edit_file(args.get("path", ""), args.get("search_block", ""), args.get("replace_block", ""))
     elif tool_name == "run_command":
-        return tool_run_command(args.get("command", ""))
+        return await tool_run_command(args.get("command", ""))
     elif tool_name == "web_screenshot":
         return await tool_web_screenshot(args.get("url", ""))
     elif tool_name == "search_codebase":
@@ -291,6 +291,11 @@ async def main():
                 console.print(f"[bold red]Error in loop:[/bold red] {e}")
     finally:
         await mcp_manager.disconnect_all()
+        try:
+            from src.tools import persistent_shell
+            await persistent_shell.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

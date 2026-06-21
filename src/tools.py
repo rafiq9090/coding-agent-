@@ -82,38 +82,95 @@ def tool_edit_file(path: str, search_block: str, replace_block: str) -> str:
     except Exception as e:
         return f"Error editing file: {e}"
 
-def tool_run_command(command: str) -> str:
-    if not check_permission("run_command", f"Run Terminal Command: {command}"):
-        return "Permission denied by user."
-    try:
-        timeout_val = config.get("command_timeout", 45)
-        
-        # Prepend the virtual environment bin path to environment PATH
+import asyncio
+
+class PersistentShell:
+    def __init__(self):
+        self.process = None
+        self.cwd = str(WORKSPACE)
+
+    async def get_process(self):
+        if self.process and self.process.returncode is None:
+            return self.process
+            
         import os
         import sys
+        
         env = os.environ.copy()
         venv_bin = Path(sys.executable).parent
         if (venv_bin / "python").exists():
             env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
-
-        # Run process inside the workspace directory
-        res = subprocess.run(
-            command,
-            shell=True,
-            cwd=str(WORKSPACE),
+            
+        self.process = await asyncio.create_subprocess_exec(
+            "bash",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
             env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_val
+            cwd=self.cwd
         )
-        output = f"Exit Code: {res.returncode}\n"
-        if res.stdout:
-            output += f"STDOUT:\n{res.stdout}\n"
-        if res.stderr:
-            output += f"STDERR:\n{res.stderr}\n"
-        return output
-    except subprocess.TimeoutExpired:
-        return f"Error: Command timed out after {timeout_val} seconds."
+        return self.process
+
+    async def run_command(self, command: str, timeout: float = 45.0) -> str:
+        proc = await self.get_process()
+        
+        sentinel = "___SHELL_SENTINEL_OK___"
+        status_check = f"echo {sentinel} $?"
+        
+        full_input = f"{command}\n{status_check}\n"
+        proc.stdin.write(full_input.encode("utf-8"))
+        await proc.stdin.drain()
+        
+        output_lines = []
+        exit_code = 0
+        
+        async def read_stdout():
+            nonlocal exit_code
+            while True:
+                line_bytes = await proc.stdout.readline()
+                if not line_bytes:
+                    break
+                line = line_bytes.decode("utf-8", errors="replace")
+                if sentinel in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        try:
+                            exit_code = int(parts[-1])
+                        except ValueError:
+                            pass
+                    break
+                output_lines.append(line)
+
+        try:
+            await asyncio.wait_for(read_stdout(), timeout=timeout)
+            output = "".join(output_lines)
+            status_desc = f"Exit Code: {exit_code}\n"
+            if output:
+                status_desc += f"STDOUT/STDERR:\n{output}"
+            else:
+                status_desc += "No output (Command executed successfully)."
+            return status_desc
+        except asyncio.TimeoutExpired:
+            await self.close()
+            return f"Error: Command timed out after {timeout} seconds. Persistent shell was reset."
+
+    async def close(self):
+        if self.process:
+            try:
+                self.process.terminate()
+                await self.process.wait()
+            except Exception:
+                pass
+            self.process = None
+
+persistent_shell = PersistentShell()
+
+async def tool_run_command(command: str) -> str:
+    if not check_permission("run_command", f"Run Terminal Command: {command}"):
+        return "Permission denied by user."
+    try:
+        timeout_val = config.get("command_timeout", 45)
+        return await persistent_shell.run_command(command, timeout=timeout_val)
     except Exception as e:
         return f"Error executing command: {e}"
 
