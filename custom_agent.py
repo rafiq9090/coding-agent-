@@ -99,7 +99,8 @@ CRITICAL INSTRUCTIONS:
 2. Write small, targeted file edits using 'edit_file' instead of overwriting whole files.
 3. Test your code: if you write a web page, start the server and run 'web_screenshot' to check console errors.
 4. If a terminal command returns a traceback error or exit code, repair the code immediately.
-5. RESPONSE STYLE:
+5. ONLY invoke tools that are directly required to fulfill the user's explicit request. Do NOT perform proactive, unsolicited audits, codebase scans, or extra checks unless the user specifically asked for them.
+6. RESPONSE STYLE:
    - Be extremely concise, direct, and professional.
    - Do NOT write long explanations, conversational remarks, or greetings.
    - Before outputting a tool JSON block, write a single short sentence explaining the plan.
@@ -227,7 +228,12 @@ async def main():
                 messages.append({"role": "user", "content": task})
                 
                 # Interactive Multi-turn Agent loop
+                loop_count = 0
                 while True:
+                    loop_count += 1
+                    if loop_count > 5:
+                        console.print("[yellow]Notice: Reached execution limit of 5 tool calls for this turn to prevent runaway loops.[/yellow]")
+                        break
                     console.print("\n[bold dim]Agent Thinking...[/bold dim]")
                     
                     try:
