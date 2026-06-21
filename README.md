@@ -45,7 +45,7 @@ Type any of the following commands at the `User > ` prompt to enter the interact
 
 This menu allows you to modify:
 1. **Model Gateway & Specific ID**: Switch between `gemini`, `claude`, `groq`, or local `ollama` and enter custom model IDs (e.g. `groq/llama-3.3-70b-versatile`).
-2. **Agent Persona**: Choose from `developer`, `qa_tester`, `orchestrator`, `database_designer`, `architecture_designer`, and `planner` to customize the system instructions.
+2. **Agent Persona**: Choose from `developer`, `qa_tester`, `orchestrator`, `database_designer`, `architecture_designer`, `planner`, and `security_engineer` to customize the system instructions.
 3. **Parameters**: Modify temperature, history memory size (max turns), and command timeouts.
 4. **Permissions**: Change actions like `run_command` or `write_file` to `always` allow, `ask` for permission, or `deny` entirely.
 5. **Allowed Directories**: Add or remove directories outside of `./agent_workspace` to allow the agent access to other local folders.
