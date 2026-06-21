@@ -33,7 +33,13 @@ from src.tools import (
     tool_edit_file,
     tool_run_command,
     tool_web_screenshot,
-    tool_search_codebase
+    tool_search_codebase,
+    tool_web_browse_navigate,
+    tool_web_browse_click,
+    tool_web_browse_type,
+    tool_web_browse_get_elements,
+    tool_web_browse_screenshot,
+    tool_web_browse_close
 )
 from src.mcp_client import mcp_manager
 
@@ -92,6 +98,18 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
         return await tool_web_screenshot(args.get("url", ""))
     elif tool_name == "search_codebase":
         return tool_search_codebase(args.get("query_text", ""))
+    elif tool_name == "web_browse_navigate":
+        return await tool_web_browse_navigate(args.get("url", ""))
+    elif tool_name == "web_browse_click":
+        return await tool_web_browse_click(args.get("selector", ""))
+    elif tool_name == "web_browse_type":
+        return await tool_web_browse_type(args.get("selector", ""), args.get("text", ""))
+    elif tool_name == "web_browse_get_elements":
+        return await tool_web_browse_get_elements()
+    elif tool_name == "web_browse_screenshot":
+        return await tool_web_browse_screenshot()
+    elif tool_name == "web_browse_close":
+        return await tool_web_browse_close()
     elif "__" in tool_name:
         return await manager.execute_tool(tool_name, args)
     else:

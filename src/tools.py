@@ -157,6 +157,136 @@ async def tool_web_screenshot(url: str) -> str:
     except Exception as e:
         return f"Error loading browser page: {e}"
 
+class PlaywrightBrowser:
+    def __init__(self):
+        self.playwright = None
+        self.browser = None
+        self.page = None
+
+    async def get_page(self):
+        if self.page and not self.page.is_closed():
+            return self.page
+        
+        from playwright.async_api import async_playwright
+        import shutil
+        executable_path = None
+        for binary in ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium", "chrome"]:
+            found = shutil.which(binary)
+            if found:
+                executable_path = found
+                break
+
+        self.playwright = await async_playwright().start()
+        launch_kwargs = {"headless": False}
+        if executable_path:
+            launch_kwargs["executable_path"] = executable_path
+            
+        try:
+            self.browser = await self.playwright.chromium.launch(**launch_kwargs)
+        except Exception:
+            # Fallback to headless mode if headful fails (e.g., no display)
+            launch_kwargs["headless"] = True
+            self.browser = await self.playwright.chromium.launch(**launch_kwargs)
+            
+        self.page = await self.browser.new_page()
+        return self.page
+
+    async def close(self):
+        if self.browser:
+            await self.browser.close()
+        if self.playwright:
+            await self.playwright.stop()
+        self.page = None
+        self.browser = None
+        self.playwright = None
+
+browser_manager = PlaywrightBrowser()
+
+async def tool_web_browse_navigate(url: str) -> str:
+    """Navigate to a URL in the active browser session."""
+    if not check_permission("web_browse_navigate", f"Browser navigate to: {url}"):
+        return "Permission denied by user."
+    try:
+        page = await browser_manager.get_page()
+        await page.goto(url, wait_until="networkidle", timeout=15000)
+        title = await page.title()
+        current_url = page.url
+        return f"Successfully navigated to '{current_url}'. Page Title: '{title}'."
+    except Exception as e:
+        return f"Error navigating to {url}: {e}"
+
+async def tool_web_browse_click(selector: str) -> str:
+    """Click an element matching the selector (CSS selector or text content)."""
+    if not check_permission("web_browse_click", f"Browser click: {selector}"):
+        return "Permission denied by user."
+    try:
+        page = await browser_manager.get_page()
+        await page.click(selector, timeout=5000)
+        return f"Successfully clicked element '{selector}'."
+    except Exception as e:
+        return f"Error clicking element '{selector}': {e}"
+
+async def tool_web_browse_type(selector: str, text: str) -> str:
+    """Type text into an input field or element matching the selector."""
+    if not check_permission("web_browse_type", f"Browser type '{text}' into: {selector}"):
+        return "Permission denied by user."
+    try:
+        page = await browser_manager.get_page()
+        await page.fill(selector, text, timeout=5000)
+        return f"Successfully typed '{text}' into element '{selector}'."
+    except Exception as e:
+        return f"Error typing into element '{selector}': {e}"
+
+async def tool_web_browse_get_elements() -> str:
+    """Retrieve clickable links, buttons, and inputs on the current page to decide interaction target."""
+    try:
+        page = await browser_manager.get_page()
+        elements = await page.evaluate("""() => {
+            const items = [];
+            document.querySelectorAll('a, button, input, textarea, [role="button"]').forEach((el, index) => {
+                const text = el.innerText || el.placeholder || el.value || '';
+                const type = el.tagName.toLowerCase();
+                let sel = el.id ? `#${el.id}` : el.tagName.toLowerCase();
+                if (el.className) {
+                    sel += '.' + Array.from(el.classList).join('.');
+                }
+                if (text.trim()) {
+                    items.push({ index, type, text: text.trim().substring(0, 50), selector: sel });
+                }
+            });
+            return items.slice(0, 40);
+        }""")
+        
+        if not elements:
+            return "No prominent interactive elements found on the current page."
+            
+        res = "Interactive elements found:\n"
+        for item in elements:
+            res += f"- [{item['type'].upper()}] Text: '{item['text']}' -> Selector: '{item['selector']}'\n"
+        return res
+    except Exception as e:
+        return f"Error getting elements: {e}"
+
+async def tool_web_browse_screenshot() -> str:
+    """Capture a screenshot of the current active browser page."""
+    if not check_permission("web_browse_screenshot", "Browser capture screenshot"):
+        return "Permission denied by user."
+    try:
+        page = await browser_manager.get_page()
+        screenshot_path = WORKSPACE / "screenshot.png"
+        await page.screenshot(path=str(screenshot_path), full_page=True)
+        return f"Screenshot successfully saved to '{screenshot_path}'."
+    except Exception as e:
+        return f"Error capturing screenshot: {e}"
+
+async def tool_web_browse_close() -> str:
+    """Close the active browser session."""
+    try:
+        await browser_manager.close()
+        return "Browser session successfully closed."
+    except Exception as e:
+        return f"Error closing browser: {e}"
+
 def tool_search_codebase(query_text: str) -> str:
     """Uses ChromaDB vector search if present; falls back to basic word matches"""
     try:
@@ -209,5 +339,35 @@ TOOLS_METADATA = [
         "name": "search_codebase",
         "description": "Search the codebase for specific text matches.",
         "arguments": ["query_text"]
+    },
+    {
+        "name": "web_browse_navigate",
+        "description": "Navigate to a URL in the active browser session.",
+        "arguments": ["url"]
+    },
+    {
+        "name": "web_browse_click",
+        "description": "Click an element matching the selector (CSS selector or text content).",
+        "arguments": ["selector"]
+    },
+    {
+        "name": "web_browse_type",
+        "description": "Type text into an input field or element matching the selector.",
+        "arguments": ["selector", "text"]
+    },
+    {
+        "name": "web_browse_get_elements",
+        "description": "Retrieve clickable links, buttons, and inputs on the current page to decide interaction target.",
+        "arguments": []
+    },
+    {
+        "name": "web_browse_screenshot",
+        "description": "Capture a screenshot of the current active browser page.",
+        "arguments": []
+    },
+    {
+        "name": "web_browse_close",
+        "description": "Close the active browser session.",
+        "arguments": []
     }
 ]
