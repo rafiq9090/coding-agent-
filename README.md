@@ -72,7 +72,8 @@ Do you want to allow this action? (y/n) [or 'exit' to quit]:
 my-agent/
 ├── custom_agent.py          # CLI Runner entry point
 ├── agent_workspace/         # The active sandbox directory for files
-│   └── agent_config.json    # Saved configurations
+│   ├── agent_config.json    # Saved configurations
+│   └── skills/              # Custom python tools/skills folder
 └── src/
     ├── __init__.py          # Package initializer
     ├── config.py            # API key parsing & configuration loads/saves
@@ -80,3 +81,29 @@ my-agent/
     ├── tools.py             # Sandbox paths checker, terminal runners, playwright
     └── ui.py                # Visual console styling and Settings Menu
 ```
+
+---
+
+## 💡 Dynamically Loaded Custom Skills
+
+You can easily extend the capabilities of the agent without modifying its core code by dropping Python files into `agent_workspace/skills/`.
+
+### How to Create a Custom Skill
+Every file in `agent_workspace/skills/` (e.g. `my_skill.py`) must implement two functions:
+1. `get_metadata()`: Returns a dictionary describing the tool name, description, and list of expected arguments.
+2. `execute(...)`: The handler function executed when the agent calls the tool (supports both sync and async definitions).
+
+Example (`agent_workspace/skills/example_skill.py`):
+```python
+def get_metadata():
+    return {
+        "name": "greet_user",
+        "description": "A custom skill that greets the user with a name.",
+        "arguments": ["name"]
+    }
+
+def execute(name: str) -> str:
+    return f"Hello {name}! This is a dynamically loaded custom skill."
+```
+
+The agent automatically discovers these files at runtime, registers them in its dynamic system prompt, and routes the execution calls to them on the fly.
