@@ -43,7 +43,8 @@ from src.tools import (
     tool_web_browse_scroll,
     tool_web_browse_get_text,
     tool_web_browse_set_viewport,
-    tool_web_browse_evaluate
+    tool_web_browse_evaluate,
+    tool_security_check
 )
 from src.mcp_client import mcp_manager
 
@@ -67,7 +68,8 @@ async def get_dynamic_system_prompt(manager) -> str:
         "orchestrator": "You are a task orchestrator and workflow automation expert. You focus on task decomposition, managing execution flow, coordinating multiple agents/tools, and running custom automated workflows.",
         "database_designer": "You are a database designer and administrator. You focus on data modeling, designing schemas, normalizations, setting up migrations, writing optimal SQL queries, indexing, and optimizing query performance.",
         "architecture_designer": "You are a software architecture designer. You focus on high-level system architecture, designing component boundaries, API contracts, choosing structural patterns, and ensuring clean separation of concerns.",
-        "planner": "You are a project planner and product manager. You focus on task planning, creating detailed PRDs, writing step-by-step implementation plans, project roadmap scheduling, estimating milestones, and tracking tasks."
+        "planner": "You are a project planner and product manager. You focus on task planning, creating detailed PRDs, writing step-by-step implementation plans, project roadmap scheduling, estimating milestones, and tracking tasks.",
+        "security_engineer": "You are a security engineer AI agent. You focus on securing codebases, identifying/mitigating vulnerabilities, scanning for exposed credentials, auditing dependency/package safety, and validating that best security practices are enforced."
     }
     role_description = persona_descriptions.get(persona, persona_descriptions["developer"])
         
@@ -133,6 +135,8 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
         return await tool_web_browse_set_viewport(int(args.get("width", 1280)), int(args.get("height", 720)), bool(args.get("is_mobile", False)))
     elif tool_name == "web_browse_evaluate":
         return await tool_web_browse_evaluate(args.get("javascript", ""))
+    elif tool_name == "security_check":
+        return tool_security_check()
     elif "__" in tool_name:
         return await manager.execute_tool(tool_name, args)
     else:

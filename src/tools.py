@@ -1,5 +1,6 @@
 import subprocess
 import json
+import re
 from pathlib import Path
 from src.config import config, WORKSPACE
 from src.ui import console, Confirm, Panel
@@ -403,6 +404,103 @@ def tool_search_codebase(query_text: str) -> str:
     except Exception as e:
         return f"Search failed: {e}"
 
+def tool_security_check() -> str:
+    """Scan the workspace for potential security issues (exposed credentials, dangerous functions, file exposures)."""
+    try:
+        findings = []
+        
+        # 1. Check for exposed secrets
+        secret_patterns = {
+            "NVIDIA API Key": r"nvapi-[A-Za-z0-9\-_]{64,}",
+            "OpenAI API Key": r"sk-[A-Za-z0-9]{48}",
+            "GitHub Token": r"ghp_[A-Za-z0-9]{36,40}",
+            "Generic Private Key": r"-----BEGIN [A-Z ]+ PRIVATE KEY-----",
+            "General API Key / Password Assignment": r"(?:api_key|password|secret|pass|token|key)\s*=\s*['\"][A-Za-z0-9\-_]{16,}['\"]"
+        }
+        
+        # 2. Check for dangerous functions
+        dangerous_patterns = {
+            "eval() function usage": r"\beval\s*\(",
+            "exec() function usage": r"\bexec\s*\(",
+            "unsafe subprocess with shell=True": r"\bsubprocess\.(?:run|Popen|call|check_output)\s*\(.*shell\s*=\s*True",
+            "raw os.system usage": r"\bos\.system\s*\("
+        }
+        
+        # Scan files
+        for file in WORKSPACE.rglob("*"):
+            if file.is_file() and not file.name.startswith(".") and "node_modules" not in file.parts and "__pycache__" not in file.parts and "venv" not in file.parts:
+                try:
+                    with open(file, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                        
+                    lines = content.splitlines()
+                    for idx, line in enumerate(lines):
+                        # Skip comment lines
+                        if line.strip().startswith("#") or line.strip().startswith("//"):
+                            continue
+                            
+                        # Scan secrets
+                        for name, pattern in secret_patterns.items():
+                            if re.search(pattern, line):
+                                findings.append({
+                                    "file": str(file.relative_to(WORKSPACE)),
+                                    "line": idx + 1,
+                                    "category": "Exposed Credential",
+                                    "severity": "CRITICAL",
+                                    "detail": f"Potential {name} match: '{line.strip()[:60]}...'"
+                                })
+                                
+                        # Scan dangerous functions
+                        for name, pattern in dangerous_patterns.items():
+                            if re.search(pattern, line):
+                                findings.append({
+                                    "file": str(file.relative_to(WORKSPACE)),
+                                    "line": idx + 1,
+                                    "category": "Dangerous API / Command Injection",
+                                    "severity": "HIGH",
+                                    "detail": f"Dangerous function '{name}': '{line.strip()[:60]}...'"
+                                })
+                except Exception:
+                    pass
+
+        # 3. Check for .env file exposure in .gitignore
+        gitignore_path = WORKSPACE.parent / ".gitignore"
+        if gitignore_path.exists():
+            try:
+                with open(gitignore_path, "r") as f:
+                    gi_content = f.read()
+                if ".env" not in gi_content:
+                    findings.append({
+                        "file": ".gitignore",
+                        "line": 0,
+                        "category": "Configuration Exposure",
+                        "severity": "MEDIUM",
+                        "detail": ".env is not specified in .gitignore, which could lead to accidental credentials leak to repository."
+                    })
+            except Exception:
+                pass
+        else:
+            findings.append({
+                "file": "None",
+                "line": 0,
+                "category": "Missing Gitignore",
+                "severity": "LOW",
+                "detail": ".gitignore file is missing in the workspace parent."
+            })
+            
+        if not findings:
+            return "### Security Scan Report\n\n**Result:** PASSED\nNo critical security vulnerabilities, hardcoded secrets, or dangerous execution APIs detected in the active workspace."
+            
+        # Format markdown response
+        report = "### 🛡️ Security Scan Report\n\n| File | Line | Category | Severity | Detail |\n| :--- | :--- | :--- | :--- | :--- |\n"
+        for f in findings:
+            report += f"| `{f['file']}` | {f['line']} | **{f['category']}** | `{f['severity']}` | {f['detail']} |\n"
+            
+        report += "\n**Summary:** Detected " + str(len(findings)) + " potential vulnerability/vulnerabilities. Please review and secure the codebase."
+        return report
+    except Exception as e:
+        return f"Error executing security scan: {e}"
+
 # List of tools metadata sent to the model
 TOOLS_METADATA = [
     {
@@ -484,5 +582,10 @@ TOOLS_METADATA = [
         "name": "web_browse_evaluate",
         "description": "Evaluate custom JavaScript in the context of the page and return the result.",
         "arguments": ["javascript"]
+    },
+    {
+        "name": "security_check",
+        "description": "Scan the workspace for potential security issues (exposed credentials, dangerous functions, file exposures).",
+        "arguments": []
     }
 ]

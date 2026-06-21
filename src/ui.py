@@ -117,7 +117,7 @@ async def run_settings_menu():
         elif choice == "persona":
             persona_choice = Prompt.ask(
                 "Select Agent Persona",
-                choices=["developer", "qa_tester", "orchestrator", "database_designer", "architecture_designer", "planner"],
+                choices=["developer", "qa_tester", "orchestrator", "database_designer", "architecture_designer", "planner", "security_engineer"],
                 default=persona
             )
             config["persona"] = persona_choice
