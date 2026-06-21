@@ -49,9 +49,16 @@ from src.tools import (
 from src.mcp_client import mcp_manager
 
 async def get_dynamic_system_prompt(manager) -> str:
-    """Combines native tools and all connected MCP tools dynamically"""
-    from src.tools import TOOLS_METADATA
+    """Combines native tools, custom skills, and all connected MCP tools dynamically"""
+    from src.tools import TOOLS_METADATA, load_custom_skills
     tools_list = list(TOOLS_METADATA)
+    
+    try:
+        custom_skills = load_custom_skills()
+        for name, skill in custom_skills.items():
+            tools_list.append(skill["metadata"])
+    except Exception:
+        pass
     
     mcp_tools = await manager.list_all_tools()
     for t in mcp_tools:
@@ -137,10 +144,35 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
         return await tool_web_browse_evaluate(args.get("javascript", ""))
     elif tool_name == "security_check":
         return tool_security_check()
-    elif "__" in tool_name:
-        return await manager.execute_tool(tool_name, args)
     else:
-        return f"Error: Tool '{tool_name}' is not recognized."
+        # Check if it is a dynamically loaded custom skill
+        from src.tools import load_custom_skills
+        try:
+            custom_skills = load_custom_skills()
+            if tool_name in custom_skills:
+                import inspect
+                func = custom_skills[tool_name]["execute"]
+                sig = inspect.signature(func)
+                
+                kwargs = {}
+                for param in sig.parameters.values():
+                    if param.name in args:
+                        kwargs[param.name] = args[param.name]
+                    elif param.default is inspect.Parameter.empty:
+                        kwargs[param.name] = None
+                        
+                if inspect.iscoroutinefunction(func):
+                    result = await func(**kwargs)
+                else:
+                    result = func(**kwargs)
+                return str(result)
+        except Exception as e:
+            return f"Error executing custom skill '{tool_name}': {e}"
+
+        if "__" in tool_name:
+            return await manager.execute_tool(tool_name, args)
+        else:
+            return f"Error: Tool '{tool_name}' is not recognized."
 
 def parse_markdown_json(response_text: str):
     """Robust parser to extract json blocks containing action specifications"""
@@ -181,10 +213,11 @@ async def main():
         while True:
             try:
                 task = console.input("[bold yellow]User > [/bold yellow]")
-                if task.strip().lower() in ("exit", "quit"):
+                cmd = task.strip().lower()
+                if cmd in ("exit", "quit"):
                     console.print("[dim]Goodbye![/dim]")
                     break
-                if task.strip().lower() in ("settings", "config", "setup"):
+                if cmd in ("settings", "setting", "config", "setup", "configure", "options", "menu"):
                     await run_settings_menu()
                     model_choice = config.get("selected_model", "gemini")
                     raw_model_id = config.get("model_details", {}).get(model_choice, "gemini/gemini-1.5-flash")
@@ -223,6 +256,8 @@ async def main():
                         ).choices[0].message.content
                     except Exception as e:
                         console.print(f"[bold red]API Error:[/bold red] {e}")
+                        if "429" in str(e) or "limit" in str(e).lower() or "quota" in str(e).lower():
+                            console.print("[yellow]Tip: You seem to have hit a rate limit or quota limit. Type 'settings' to configure or switch models/gateways.[/yellow]")
                         break
                     
                     explanation = clean_markdown_explanation(reply)

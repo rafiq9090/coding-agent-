@@ -404,6 +404,57 @@ def tool_search_codebase(query_text: str) -> str:
     except Exception as e:
         return f"Search failed: {e}"
 
+def load_custom_skills() -> dict:
+    """Dynamically load python custom skills from the 'skills' directory inside the workspace."""
+    import importlib.util
+    import inspect
+    
+    skills_dir = WORKSPACE / "skills"
+    skills_dir.mkdir(exist_ok=True)
+    
+    # Create an example skill if none exist
+    example_skill = skills_dir / "example_skill.py"
+    if not any(skills_dir.glob("*.py")):
+        with open(example_skill, "w", encoding="utf-8") as f:
+            f.write('''# Example custom skill file.
+# You can add any python file here with get_metadata() and execute() functions.
+# The agent will dynamically load and register it as an available tool.
+
+def get_metadata():
+    return {
+        "name": "greet_user",
+        "description": "A custom skill that greets the user with a name.",
+        "arguments": ["name"]
+    }
+
+def execute(name: str) -> str:
+    return f"Hello {name}! This is a dynamically loaded custom skill."
+''')
+
+    skills = {}
+    for filepath in skills_dir.glob("*.py"):
+        if filepath.name.startswith("_") or filepath.name.startswith("."):
+            continue
+        try:
+            module_name = filepath.stem
+            spec = importlib.util.spec_from_file_location(module_name, str(filepath))
+            if spec is None or spec.loader is None:
+                continue
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            if hasattr(module, "get_metadata") and hasattr(module, "execute"):
+                meta = module.get_metadata()
+                if isinstance(meta, dict) and "name" in meta and "description" in meta:
+                    skills[meta["name"]] = {
+                        "metadata": meta,
+                        "execute": module.execute
+                    }
+        except Exception as e:
+            pass
+            
+    return skills
+
 def tool_security_check() -> str:
     """Scan the workspace for potential security issues (exposed credentials, dangerous functions, file exposures)."""
     try:
