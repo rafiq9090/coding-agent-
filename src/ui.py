@@ -88,7 +88,7 @@ async def run_settings_menu():
         
         choice = Prompt.ask(
             "Select action",
-            choices=["model", "persona", "parameters", "permissions", "allowed_dirs", "back"],
+            choices=["model", "persona", "parameters", "permissions", "allowed_dirs", "mcp_servers", "back"],
             default="back"
         )
         
@@ -123,7 +123,7 @@ async def run_settings_menu():
             config["persona"] = persona_choice
             save_config(config)
             console.print(f"[green]✓[/green] Persona configured to: [bold cyan]{persona_choice}[/bold cyan]\n")
-
+ 
         elif choice == "parameters":
             param = Prompt.ask(
                 "Select parameter to configure",
@@ -154,7 +154,7 @@ async def run_settings_menu():
                     console.print(f"[green]✓[/green] Command timeout updated to {config['command_timeout']}s\n")
                 except ValueError:
                     console.print("[red]Invalid integer value.[/red]\n")
-                    
+                     
         elif choice == "permissions":
             tools = list(config.get("permission_policy", {}).keys())
             tool_choice = Prompt.ask(
@@ -171,7 +171,7 @@ async def run_settings_menu():
                 config["permission_policy"][tool_choice] = policy_choice
                 save_config(config)
                 console.print(f"[green]✓[/green] '{tool_choice}' set to: [bold cyan]{policy_choice}[/bold cyan]\n")
-                
+                 
         elif choice == "allowed_dirs":
             dir_action = Prompt.ask(
                 "Modify allowed directories list",
@@ -209,3 +209,47 @@ async def run_settings_menu():
                 config["allowed_dirs"] = [str(WORKSPACE)]
                 save_config(config)
                 console.print(f"[green]✓[/green] Reset allowed directories list to defaults.\n")
+                
+        elif choice == "mcp_servers":
+            mcp_action = Prompt.ask(
+                "Modify MCP servers list",
+                choices=["add", "remove", "list", "cancel"],
+                default="cancel"
+            )
+            if mcp_action == "list":
+                servers = config.get("mcp_servers", {})
+                if not servers:
+                    console.print("[yellow]No MCP servers configured.[/yellow]\n")
+                else:
+                    console.print("[bold white]Configured MCP Servers:[/bold white]")
+                    for name, cfg in servers.items():
+                        console.print(f"  • [cyan]{name}[/cyan]: command={cfg.get('command')}, args={cfg.get('args')}")
+                    console.print("")
+            elif mcp_action == "add":
+                name = Prompt.ask("Enter unique name for the MCP server")
+                command = Prompt.ask("Enter server execution command (e.g. npx, python)")
+                args_input = Prompt.ask("Enter command arguments (comma-separated, optional)")
+                args = [a.strip() for a in args_input.split(",") if a.strip()] if args_input else []
+                
+                if "mcp_servers" not in config:
+                    config["mcp_servers"] = {}
+                config["mcp_servers"][name] = {
+                    "command": command,
+                    "args": args
+                }
+                save_config(config)
+                console.print(f"[green]✓[/green] Added MCP server '{name}'. Note: You must restart the agent to connect.\n")
+            elif mcp_action == "remove":
+                servers = list(config.get("mcp_servers", {}).keys())
+                if not servers:
+                    console.print("[yellow]No MCP servers configured to remove.[/yellow]\n")
+                    continue
+                rem_name = Prompt.ask(
+                    "Select MCP server to remove",
+                    choices=servers + ["cancel"],
+                    default="cancel"
+                )
+                if rem_name != "cancel":
+                    del config["mcp_servers"][rem_name]
+                    save_config(config)
+                    console.print(f"[green]✓[/green] Removed MCP server '{rem_name}'. Note: Restart to apply changes.\n")

@@ -15,3 +15,4 @@ env/
 # Workspace local runs and screenshots
 agent_workspace/agent_config.json
 agent_workspace/screenshot.png
+agent_workspace/skills/
