@@ -1,0 +1,28 @@
+{
+  "selected_model": "local",
+  "model_details": {
+    "gemini": "gemini/gemini-2.5-flash",
+    "claude": "anthropic/claude-3-5-sonnet-20241022",
+    "groq": "groq/llama-3.3-70b-versatile",
+    "nvidia": "nvidia_nim/meta/llama-3.1-70b-instruct",
+    "local": "ollama/qwen2.5-coder:7b"
+  },
+  "persona": "developer",
+  "temperature": 0.15,
+  "max_history_turns": 6,
+  "command_timeout": 45,
+  "permission_policy": {
+    "read_file": "always",
+    "write_file": "ask",
+    "edit_file": "ask",
+    "run_command": "ask",
+    "web_screenshot": "always",
+    "search_codebase": "always",
+    "security_check": "always",
+    "git_control": "ask",
+    "http_request": "ask"
+  },
+  "allowed_dirs": [
+    "/home/rafiq/allProject/my-agent/gui_server:app_new"
+  ]
+}
