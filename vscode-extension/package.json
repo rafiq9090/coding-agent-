@@ -1,0 +1,71 @@
+{
+  "name": "antigravity-agent",
+  "displayName": "Antigravity Agent - Copilot Style",
+  "description": "🤖 AI Agent with Copilot-style chat, tool execution, real-time logging, and permission management",
+  "version": "1.0.0",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["AI", "Chat", "Developer Tools"],
+  "keywords": ["ai", "agent", "copilot", "chat", "assistant", "automation"],
+  "activationEvents": [
+    "onCommand:antigravity-agent.openAgent",
+    "onCommand:antigravity-agent.stopAgent",
+    "onView:antigravityAgentSidebar"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravity-agent.openAgent",
+        "title": "Open Antigravity Agent",
+        "category": "Antigravity Agent",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "antigravity-agent.stopAgent",
+        "title": "Stop Agent Server",
+        "category": "Antigravity Agent",
+        "icon": "$(stop)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "antigravityAgentSidebar",
+          "name": "Agent Control Panel",
+          "when": "true",
+          "icon": "$(symbol-method)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "antigravity-agent.openAgent",
+          "group": "navigation",
+          "when": "view == antigravityAgentSidebar"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "antigravity-agent.openAgent",
+          "when": "true"
+        },
+        {
+          "command": "antigravity-agent.stopAgent",
+          "when": "true"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'Ready to publish'",
+    "test": "node ./test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^18.0.0"
+  }
+}

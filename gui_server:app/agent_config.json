@@ -1,5 +1,5 @@
 {
-  "selected_model": "local",
+  "selected_model": "groq",
   "model_details": {
     "gemini": "gemini/gemini-2.5-flash",
     "claude": "anthropic/claude-3-5-sonnet-20241022",

@@ -5,6 +5,8 @@ from pathlib import Path
 from src.config import config, WORKSPACE
 from src.ui import console, Confirm, Panel
 
+PERMISSION_HANDLER = None  # Can be overridden by external interfaces (like Web GUI)
+
 def check_permission(action: str, detail: str) -> bool:
     """Interceptors to check user defined rules before running dangerous tools"""
     policy = config["permission_policy"].get(action, "ask")
@@ -14,6 +16,9 @@ def check_permission(action: str, detail: str) -> bool:
         console.print(f"[bold red]Blocked:[/bold red] Action '{action}' is denied by your permissions config.")
         return False
     
+    if PERMISSION_HANDLER is not None:
+        return PERMISSION_HANDLER(action, detail)
+        
     # Prompt the user for explicit permission
     console.print(Panel(f"[yellow]{detail}[/yellow]", title=f"Permission Required: {action.upper()}"))
     return Confirm.ask("Do you want to allow this action?")
@@ -609,6 +614,74 @@ def tool_security_check() -> str:
     except Exception as e:
         return f"Error executing security scan: {e}"
 
+def tool_git_control(action: str, file_path: str = None, message: str = None) -> str:
+    """Perform Git operations (status, diff, add, commit, log) inside the workspace."""
+    if not check_permission("git_control", f"Git operation: {action}"):
+        return "Permission denied by user."
+    try:
+        import subprocess
+        cwd = str(WORKSPACE)
+        if action == "status":
+            cmd = ["git", "status"]
+        elif action == "diff":
+            cmd = ["git", "diff"]
+            if file_path:
+                cmd.append(file_path)
+        elif action == "add":
+            if not file_path:
+                return "Error: file_path is required for add action."
+            cmd = ["git", "add", file_path]
+        elif action == "commit":
+            if not message:
+                return "Error: commit message is required."
+            cmd = ["git", "commit", "-m", message]
+        elif action == "log":
+            cmd = ["git", "log", "-n", "5", "--oneline"]
+        else:
+            return f"Error: Unknown git action '{action}'."
+            
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        out = res.stdout + res.stderr
+        return f"Exit Code: {res.returncode}\nOutput:\n{out if out.strip() else 'No output'}"
+    except Exception as e:
+        return f"Error running git operation: {e}"
+
+async def tool_http_request(method: str, url: str, headers: dict = None, data: str = None) -> str:
+    """Send an HTTP request (GET, POST, etc.) and retrieve the response."""
+    if not check_permission("http_request", f"HTTP Request: {method} {url}"):
+        return "Permission denied by user."
+    try:
+        import httpx
+    except ImportError:
+        return "Error: httpx is not installed. Run: pip install httpx"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            headers_dict = headers if headers else {}
+            json_data = None
+            content_data = None
+            if data:
+                try:
+                    import json
+                    json_data = json.loads(data)
+                except Exception:
+                    content_data = data
+            res = await client.request(
+                method=method.upper(),
+                url=url,
+                headers=headers_dict,
+                json=json_data,
+                content=content_data
+            )
+            body = res.text
+            if "application/json" in res.headers.get("content-type", ""):
+                try:
+                    body = json.dumps(res.json(), indent=2)
+                except Exception:
+                    pass
+            return f"Status Code: {res.status_code}\nHeaders:\n{json.dumps(dict(res.headers), indent=2)}\n\nResponse Body:\n{body[:5000]}"
+    except Exception as e:
+        return f"Error sending HTTP request: {e}"
+
 # List of tools metadata sent to the model
 TOOLS_METADATA = [
     {
@@ -695,5 +768,15 @@ TOOLS_METADATA = [
         "name": "security_check",
         "description": "Scan the workspace for potential security issues (exposed credentials, dangerous functions, file exposures).",
         "arguments": []
+    },
+    {
+        "name": "git_control",
+        "description": "Perform Git operations (status, diff, add, commit, log) inside the workspace.",
+        "arguments": ["action", "file_path", "message"]
+    },
+    {
+        "name": "http_request",
+        "description": "Send an HTTP request (GET, POST, PUT, DELETE) and return the response.",
+        "arguments": ["method", "url", "headers", "data"]
     }
 ]

@@ -17,7 +17,7 @@ load_dotenv(dotenv_path=agent_dir / ".env")
 
 
 # Import config first to apply quote-stripping and folder structures
-from src.config import config, WORKSPACE, get_resolved_model_id
+from src.config import config, WORKSPACE, get_resolved_model_id, build_messages_for_model
 
 # Try to import litellm
 try:
@@ -44,7 +44,9 @@ from src.tools import (
     tool_web_browse_get_text,
     tool_web_browse_set_viewport,
     tool_web_browse_evaluate,
-    tool_security_check
+    tool_security_check,
+    tool_git_control,
+    tool_http_request
 )
 from src.mcp_client import mcp_manager
 
@@ -145,6 +147,10 @@ async def execute_tool_call(tool_name: str, args: dict, manager) -> str:
         return await tool_web_browse_evaluate(args.get("javascript", ""))
     elif tool_name == "security_check":
         return tool_security_check()
+    elif tool_name == "git_control":
+        return tool_git_control(args.get("action", ""), args.get("file_path"), args.get("message"))
+    elif tool_name == "http_request":
+        return await tool_http_request(args.get("method", ""), args.get("url", ""), args.get("headers"), args.get("data"))
     else:
         # Check if it is a dynamically loaded custom skill
         from src.tools import load_custom_skills
@@ -190,6 +196,9 @@ def clean_markdown_explanation(response_text: str) -> str:
     cleaned = re.sub(r"```json\s*.*?\s*```", "", response_text, flags=re.DOTALL)
     return cleaned.strip()
 
+STREAM_CALLBACK = None
+LOG_CALLBACK = None
+
 async def main():
     console.print(Panel(
         "[bold cyan]Custom Terminal Coding Agent[/bold cyan]\n"
@@ -213,7 +222,7 @@ async def main():
         
         while True:
             try:
-                task = console.input("[bold yellow]User > [/bold yellow]")
+                task = console.input("[bold yellow]Code Rafiq > [/bold yellow]")
                 cmd = task.strip().lower()
                 if cmd in ("exit", "quit"):
                     console.print("[dim]Goodbye![/dim]")
@@ -254,21 +263,35 @@ async def main():
                         # Compute dynamic system prompt incorporating all native and MCP tools
                         dynamic_system_prompt = await get_dynamic_system_prompt(mcp_manager)
     
-                        reply = litellm.completion(
+                        response = litellm.completion(
                             model=active_model_id,
-                            messages=[{"role": "system", "content": dynamic_system_prompt}] + active_messages,
+                            messages=build_messages_for_model(
+                                gateway,
+                                raw_model_id,
+                                dynamic_system_prompt,
+                                active_messages,
+                            ),
                             api_base="http://localhost:11434" if gateway == "local" else None,
-                            temperature=config.get("temperature", 0.15)
-                        ).choices[0].message.content
+                            temperature=config.get("temperature", 0.15),
+                            stream=True
+                        )
+                        
+                        reply = ""
+                        console.print("[bold cyan]Agent > [/bold cyan]", end="")
+                        for chunk in response:
+                            content = chunk.choices[0].delta.content
+                            if content:
+                                reply += content
+                                console.print(content, end="", style="cyan", markup=False, highlight=False)
+                                if STREAM_CALLBACK:
+                                    STREAM_CALLBACK(content)
+                        console.print()
                     except Exception as e:
                         console.print(f"[bold red]API Error:[/bold red] {e}")
                         if "429" in str(e) or "limit" in str(e).lower() or "quota" in str(e).lower():
                             console.print("[yellow]Tip: You seem to have hit a rate limit or quota limit. Type 'settings' to configure or switch models/gateways.[/yellow]")
                         break
                     
-                    explanation = clean_markdown_explanation(reply)
-                    if explanation:
-                        console.print(Panel(Markdown(explanation), title="Agent Response"))
                     messages.append({"role": "assistant", "content": reply})
                     
                     tool_call = parse_markdown_json(reply)
@@ -278,9 +301,14 @@ async def main():
                         
                         args_str = ", ".join(f"{k}={json.dumps(v)}" for k, v in args.items())
                         console.print(f"[bold green]▶ Tool Call Detected:[/bold green] [cyan]{tool_name}({args_str})[/cyan]")
+                        if LOG_CALLBACK:
+                            LOG_CALLBACK("tool_start", f"▶ Tool Call Detected: {tool_name}({args_str})", tool_name, args)
+                            
                         result = await execute_tool_call(tool_name, args, mcp_manager)
                         
                         console.print(Panel(result, title=f"Execution Outcome: {tool_name}"))
+                        if LOG_CALLBACK:
+                            LOG_CALLBACK("tool_end", result, tool_name, None)
                         messages.append({"role": "user", "content": f"Execution Result:\n{result}"})
                     else:
                         break

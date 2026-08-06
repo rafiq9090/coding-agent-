@@ -4,8 +4,17 @@ import json
 import asyncio
 from typing import Dict, List, Any
 from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    _MCP_AVAILABLE = True
+except ModuleNotFoundError:
+    ClientSession = None
+    StdioServerParameters = None
+    stdio_client = None
+    _MCP_AVAILABLE = False
+
 from src.config import config
 from src.ui import console
 
@@ -16,6 +25,11 @@ class MCPManager:
 
     async def connect_servers(self):
         """Connects to all configured MCP servers defined in settings."""
+        if not _MCP_AVAILABLE:
+            console.print("[yellow]MCP package is unavailable. Skipping MCP server connections.[/yellow]")
+            return
+        if self.sessions:
+            return
         mcp_configs = config.get("mcp_servers", {})
         if not mcp_configs:
             return
@@ -53,6 +67,9 @@ class MCPManager:
 
     async def list_all_tools(self) -> List[Dict[str, Any]]:
         """Aggregates all tools from all connected MCP servers."""
+        if not _MCP_AVAILABLE:
+            return []
+
         all_tools = []
         for server_name, session in self.sessions.items():
             try:
@@ -73,6 +90,8 @@ class MCPManager:
 
     async def execute_tool(self, combined_name: str, arguments: dict) -> str:
         """Executes a tool on the target MCP server using combined name."""
+        if not _MCP_AVAILABLE:
+            return "Error: MCP package is unavailable."
         if "__" not in combined_name:
             return f"Error: Tool name '{combined_name}' must be formatted as 'server__toolname'"
             

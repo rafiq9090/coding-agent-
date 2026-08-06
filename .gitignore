@@ -16,3 +16,8 @@ env/
 agent_workspace/agent_config.json
 agent_workspace/screenshot.png
 agent_workspace/skills/
+ollama_local/
+*.tgz
+*.log
+*.mp4
+*.vsix

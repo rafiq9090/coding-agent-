@@ -73,6 +73,17 @@ async def run_settings_menu():
         model_id = config.get("model_details", {}).get(gateway, "gemini/gemini-1.5-flash")
         persona = config.get("persona", "developer")
 
+        import os
+        api_keys_status = []
+        for key_name in ["GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "NVIDIA_API_KEY"]:
+            val = os.environ.get(key_name, "").strip()
+            if val:
+                masked = val[:6] + "..." + val[-4:] if len(val) > 10 else "Present"
+                api_keys_status.append(f"  • [cyan]{key_name:18}[/cyan]: [green]{masked}[/green]")
+            else:
+                api_keys_status.append(f"  • [cyan]{key_name:18}[/cyan]: [red]Missing[/red]")
+        api_keys_text = "\n".join(api_keys_status)
+
         console.print(Panel(
             f"[bold white]Current Configuration:[/bold white]\n"
             f"  • [cyan]Model Gateway    [/cyan]: [bold green]{gateway}[/bold green] ({model_id})\n"
@@ -81,6 +92,7 @@ async def run_settings_menu():
             f"  • [cyan]Max History Turns[/cyan]: [bold green]{config.get('max_history_turns')}[/bold green]\n"
             f"  • [cyan]Command Timeout  [/cyan]: [bold green]{config.get('command_timeout')}s[/bold green]\n"
             f"  • [cyan]Allowed Dirs     [/cyan]: [dim]{config.get('allowed_dirs')}[/dim]\n\n"
+            f"[bold white]API Keys Status:[/bold white]\n{api_keys_text}\n\n"
             f"[bold white]Tool Permissions Policy:[/bold white]\n{perm_text}",
             title="⚙️ Agent Settings Menu",
             border_style="cyan"
@@ -88,7 +100,7 @@ async def run_settings_menu():
         
         choice = Prompt.ask(
             "Select action",
-            choices=["model", "persona", "parameters", "permissions", "allowed_dirs", "mcp_servers", "back"],
+            choices=["model", "persona", "parameters", "permissions", "allowed_dirs", "mcp_servers", "api_keys", "back"],
             default="back"
         )
         
@@ -97,7 +109,7 @@ async def run_settings_menu():
         elif choice == "model":
             model_choice = Prompt.ask(
                 "Select Model Gateway",
-                choices=["gemini", "claude", "groq", "local"],
+                choices=["gemini", "claude", "groq", "nvidia", "local"],
                 default=gateway
             )
             config["selected_model"] = model_choice
@@ -253,3 +265,17 @@ async def run_settings_menu():
                     del config["mcp_servers"][rem_name]
                     save_config(config)
                     console.print(f"[green]✓[/green] Removed MCP server '{rem_name}'. Note: Restart to apply changes.\n")
+                    
+        elif choice == "api_keys":
+            key_choice = Prompt.ask(
+                "Select API Key to configure",
+                choices=["GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "NVIDIA_API_KEY", "cancel"],
+                default="cancel"
+            )
+            if key_choice != "cancel":
+                current_val = os.environ.get(key_choice, "")
+                new_val = Prompt.ask(f"Enter new value for {key_choice}", default=current_val)
+                if new_val != current_val:
+                    from src.config import set_env_var
+                    set_env_var(key_choice, new_val)
+                    console.print(f"[green]✓[/green] Updated {key_choice} successfully.\n")
